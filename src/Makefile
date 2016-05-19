@@ -6,6 +6,7 @@ include $(TOP)/config.mk
 # export CFLAGS to have more consistent flags in sub-makefiles
 # as dpkg-buildpackage does export it.
 export CFLAGS
+export LDFLAGS="$LDFLAGS -lm"
 
 CFLAGS += $(CONF_CFLAGS) $(CONF_SUPL_DEBUG)
 CFLAGS += -I./asn-rrlp -I./asn-supl
@@ -21,13 +22,13 @@ DIST = Makefile $(PROGRAM_SOURCE) $(SUPL_C_SOURCE) $(SUPL_ASN1_SOURCE) $(RRLP_AS
 all: supl-client supl-proxy supl-cert
 
 supl-client: libsupl.so supl-client.o
-	$(CC) -o $@ supl-client.o -L. -lsupl -lssl -lm
+	$(CC) -o $@ supl-client.o -L. -lsupl -lssl -lm -lcrypto
 
 supl-proxy: libsupl.so supl-proxy.o
-	$(CC) -o $@ supl-proxy.o -L. -lsupl -lssl -lm
+	$(CC) -o $@ supl-proxy.o -L. -lsupl -lssl -lm -lcrypto
 
 supl-cert: supl-cert.o
-	$(CC) -o $@ supl-cert.o $(shell pkg-config --libs openssl) -lm
+	$(CC) -o $@ supl-cert.o $(shell pkg-config --libs openssl) -lm -lcrypto
 
 libsupl.so: libsupl.so.1.0
 	ln -sf libsupl.so.1 libsupl.so
