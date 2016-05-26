@@ -16,9 +16,10 @@
 #include <errno.h>
 #include <sys/types.h>
 
+#include "ublox/ublox_structures.h"
 #include "supl.h"
 
-typedef enum { FORMAT_DEFAULT, FORMAT_HUMAN } format_t;
+typedef enum { FORMAT_DEFAULT, FORMAT_HUMAN, FORMAT_UBLOX } format_t;
 
 static struct fake_pos_s {
   int valid;
@@ -39,14 +40,14 @@ static time_t utc_time(int week, long tow) {
   t += (1024 + week) * 604800 + tow*0.08;
 
   return t;
-} 
+}
 
 static int supl_consume_1(supl_assist_t *ctx) {
   if (ctx->set & SUPL_RRLP_ASSIST_REFLOC) {
     fprintf(stdout, "Reference Location:\n");
     fprintf(stdout, "  Lat: %f\n", ctx->pos.lat);
     fprintf(stdout, "  Lon: %f\n", ctx->pos.lon);
-    fprintf(stdout, "  Uncertainty: %d (%.1f m)\n", 
+    fprintf(stdout, "  Uncertainty: %d (%.1f m)\n",
 	    ctx->pos.uncertainty, 10.0*(pow(1.1, ctx->pos.uncertainty)-1));
   }
 
@@ -65,13 +66,13 @@ static int supl_consume_1(supl_assist_t *ctx) {
     fprintf(stdout, "Ionospheric Model:\n");
     fprintf(stdout, "  # a0 a1 a2 b0 b1 b2 b3\n");
     fprintf(stdout, "  %g, %g, %g",
-	    ctx->iono.a0 * pow(2.0, -30), 
+	    ctx->iono.a0 * pow(2.0, -30),
 	    ctx->iono.a1 * pow(2.0, -27),
 	    ctx->iono.a2 * pow(2.0, -24));
     fprintf(stdout, " %g, %g, %g, %g\n",
-	    ctx->iono.b0 * pow(2.0, 11), 
+	    ctx->iono.b0 * pow(2.0, 11),
 	    ctx->iono.b1 * pow(2.0, 14),
-	    ctx->iono.b2 * pow(2.0, 16), 
+	    ctx->iono.b2 * pow(2.0, 16),
 	    ctx->iono.b3 * pow(2.0, 16));
   }
 
@@ -98,28 +99,28 @@ static int supl_consume_1(supl_assist_t *ctx) {
       struct supl_ephemeris_s *e = &ctx->eph[i];
 
       fprintf(stdout, "  %d %g %g %g %g %g %g %g %g",
-	      e->prn, 
-	      e->delta_n * pow(2.0, -43), 
-	      e->M0 * pow(2.0, -31), 
-	      e->A_sqrt * pow(2.0, -19), 
-	      e->OMEGA_0 * pow(2.0, -31), 
-	      e->i0 * pow(2.0, -31), 
-	      e->w * pow(2.0, -31), 
-	      e->OMEGA_dot * pow(2.0, -43), 
+	      e->prn,
+	      e->delta_n * pow(2.0, -43),
+	      e->M0 * pow(2.0, -31),
+	      e->A_sqrt * pow(2.0, -19),
+	      e->OMEGA_0 * pow(2.0, -31),
+	      e->i0 * pow(2.0, -31),
+	      e->w * pow(2.0, -31),
+	      e->OMEGA_dot * pow(2.0, -43),
 	      e->i_dot * pow(2.0, -43));
       fprintf(stdout, " %g %g %g %g %g %g",
-	      e->Cuc * pow(2.0, -29), 
-	      e->Cus * pow(2.0, -29), 
-	      e->Crc * pow(2.0, -5), 
-	      e->Crs * pow(2.0, -5), 
-	      e->Cic * pow(2.0, -29), 
+	      e->Cuc * pow(2.0, -29),
+	      e->Cus * pow(2.0, -29),
+	      e->Crc * pow(2.0, -5),
+	      e->Crs * pow(2.0, -5),
+	      e->Cic * pow(2.0, -29),
 	      e->Cis * pow(2.0, -29));
       fprintf(stdout, " %g %u %g %g %g %g",
-	      e->toe * pow(2.0, 4), 
-	      e->IODC, 
-	      e->toc * pow(2.0, 4), 
-	      e->AF0 * pow(2.0, -31), 
-	      e->AF1 * pow(2.0, -43), 
+	      e->toe * pow(2.0, 4),
+	      e->IODC,
+	      e->toc * pow(2.0, 4),
+	      e->AF0 * pow(2.0, -31),
+	      e->AF1 * pow(2.0, -43),
 	      e->AF2 * pow(2.0, -55));
       fprintf(stdout, " %d %d %d %d %d\n",
 	      e->bits,
@@ -141,13 +142,13 @@ static int supl_consume_1(supl_assist_t *ctx) {
       struct supl_almanac_s *a = &ctx->alm[i];
 
       fprintf(stdout, "  %d %g %g %g %g ",
-	      a->prn, 
-	      a->e * pow(2.0, -21), 
+	      a->prn,
+	      a->e * pow(2.0, -21),
 	      a->toa * pow(2.0, 12),
 	      a->Ksii * pow(2.0, -19),
 	      a->OMEGA_dot * pow(2.0, -38));
       fprintf(stdout, "%g %g %g %g %g %g\n",
-	      a->A_sqrt * pow(2.0, -11), 
+	      a->A_sqrt * pow(2.0, -11),
 	      a->OMEGA_0 * pow(2.0, -23),
 	      a->w * pow(2.0, -23),
 	      a->M0 * pow(2.0, -23),
@@ -161,7 +162,7 @@ static int supl_consume_1(supl_assist_t *ctx) {
 
 static int supl_consume_2(supl_assist_t *ctx) {
   if (ctx->set & SUPL_RRLP_ASSIST_REFTIME) {
-    fprintf(stdout, "T %ld %ld %ld %ld\n", ctx->time.gps_week, ctx->time.gps_tow, 
+    fprintf(stdout, "T %ld %ld %ld %ld\n", ctx->time.gps_week, ctx->time.gps_tow,
 	    ctx->time.stamp.tv_sec, ctx->time.stamp.tv_usec);
   }
 
@@ -176,7 +177,7 @@ static int supl_consume_2(supl_assist_t *ctx) {
     fprintf(stdout, "L %f %f %d\n", ctx->pos.lat, ctx->pos.lon, ctx->pos.uncertainty);
   } else if (fake_pos.valid) {
     fprintf(stdout, "L %f %f %d\n", fake_pos.lat, fake_pos.lon, fake_pos.uncertainty);
-  }    
+  }
 
   if (ctx->set & SUPL_RRLP_ASSIST_IONO) {
     fprintf(stdout, "I %d %d %d %d %d %d %d\n",
@@ -227,7 +228,7 @@ static int supl_consume_2(supl_assist_t *ctx) {
       fprintf(stdout, "q %d %d %d ",
 	      q->prn, q->parts, q->doppler0);
       if (q->parts & SUPL_ACQUIS_DOPPLER) {
-	fprintf(stdout, "%d %d ", q->doppler1, q->d_win); 
+	fprintf(stdout, "%d %d ", q->doppler1, q->d_win);
       } else {
 	fprintf(stdout, "0 0 ");
       }
@@ -244,6 +245,120 @@ static int supl_consume_2(supl_assist_t *ctx) {
   return 1;
 }
 
+static int supl_consume_3(supl_assist_t *ctx) {
+	struct AidIni aid_ini;
+	struct AidHui aid_hui;
+	struct UbloxAlmanac almanac;
+	struct Ephemerides ephemerides;
+
+	/* AID-INI */
+	aid_ini.header.sync1 = UBX_SYNC_BYTE_1;
+	aid_ini.header.sync2 = UBX_SYNC_BYTE_2;
+	aid_ini.header.message_class = MSG_CLASS_AID;
+	aid_ini.header.message_id = MSG_ID_AID_INI;
+	aid_ini.header.payload_length = 48;
+
+    if (ctx->set & SUPL_RRLP_ASSIST_REFLOC) {
+        aid_ini.ecefXorLat = (int32_t) (ctx->pos.lat * 10000000);
+        aid_ini.ecefYorLon = (int32_t) (ctx->pos.lon * 10000000);
+    } else {
+        aid_ini.ecefXorLat = 0;
+        aid_ini.ecefYorLon = 0;
+    }
+	aid_ini.ecefZorAlt = 0;
+	aid_ini.position_accuracy = (uint32_t) (10.0 * (pow(1.1, ctx->pos.uncertainty) - 1));
+
+    if (ctx->set & SUPL_RRLP_ASSIST_REFTIME) {
+        aid_ini.week_number = (uint16_t) ctx->time.gps_week;
+        aid_ini.time_of_week = (uint32_t) ctx->time.gps_tow;
+    } else {
+        aid_ini.week_number = 0;
+        aid_ini.time_of_week = 0;
+    }
+    aid_ini.time_configuration = 0;
+    aid_ini.time_accuracy_ms = aid_ini.time_accuracy_ns = 0;
+    aid_ini.time_of_week_ns = 0;
+
+	aid_ini.clock_drift_or_freq = aid_ini.clock_drift_or_freq_accuracy = aid_ini.flags = 0;
+	aid_ini.checksum[0] = aid_ini.checksum[1] = 0;
+
+	/* AID-HUI */
+
+
+	/* AID-ALM */
+	if (ctx->cnt_alm) {
+	    int i;
+
+	    for (i = 0; i < ctx->cnt_alm; i++) {
+	      struct supl_almanac_s *a = &ctx->alm[i];
+	      if (a->prn <= MAX_SAT) {
+	    	  struct AlmSV *b = &almanac.almsv[a->prn - 1];
+	    	  b->header.payload_length = 40;
+
+	    	  // words
+	    	  b->words[0] = a->e | ((a->prn & 0x3F) << 16) | ((1 & 0xF) << 22);
+	    	  b->words[1] = a->Ksii | (a->toa << 16);
+	    	  b->words[2] = (uint32_t) (a->OMEGA_dot << 8);
+	    	  b->words[3] = a->A_sqrt & 0xFFFFFF;
+	    	  b->words[4] = (uint32_t) (a->OMEGA_0 & 0xFFFFFF);
+	    	  b->words[5] = (uint32_t) (a->w & 0xFFFFFF);
+	    	  b->words[6] = (uint32_t) (a->M0 & 0xFFFFFF);
+
+	    	  b->words[7] = (uint32_t) (((a->AF0 & 0b11111111000) << 13) | ((a->AF1 & 0b1111111111) << 5) | ((a->AF0 & 0b111) << 2));
+	      }
+	    }
+	    for (i = 0; i < MAX_SAT; i++) {
+	    	struct AlmSV *a = &almanac.almsv[i];
+	    	a->header.sync1 = UBX_SYNC_BYTE_1;
+	    	a->header.sync2 = UBX_SYNC_BYTE_2;
+	    	a->header.message_class = MSG_CLASS_AID;
+	    	a->header.message_id = MSG_ID_AID_ALM;
+	    	if (a->header.payload_length != 40) {
+	    		a->header.payload_length = 8;
+	    		a->issue_week = 0;
+	    	} else {
+	    		a->issue_week = (uint32_t) ctx->alm_week;
+	    	}
+
+	    	a->svprn = (uint32_t) (i + 1);
+            a->checksum[0] = a->checksum[1] = 0;
+	    }
+	}
+
+    /* ALM-EPH */
+
+    /* Output */
+    fwrite((const void *) &aid_ini, sizeof(struct AidIni), 1, stdout);
+    fwrite((const void *) &almanac, sizeof(struct UbloxAlmanac), 1, stdout);
+
+//  if (ctx->set & SUPL_RRLP_ASSIST_IONO) {
+//    fprintf(stdout, "I %d %d %d %d %d %d %d\n",
+//	    ctx->iono.a0, ctx->iono.a1, ctx->iono.a2,
+//	    ctx->iono.b0, ctx->iono.b1, ctx->iono.b2, ctx->iono.b3);
+//  }
+//
+//  if (ctx->cnt_eph) {
+//    int i;
+//
+//    fprintf(stdout, "E %d\n", ctx->cnt_eph);
+//
+//    for (i = 0; i < ctx->cnt_eph; i++) {
+//      struct supl_ephemeris_s *e = &ctx->eph[i];
+//
+//      fprintf(stdout, "e %d %d %d %d %d %d %d %d %d %d",
+//	      e->prn, e->delta_n, e->M0, e->A_sqrt, e->OMEGA_0, e->i0, e->w, e->OMEGA_dot, e->i_dot, e->e);
+//      fprintf(stdout, " %d %d %d %d %d %d",
+//	      e->Cuc, e->Cus, e->Crc, e->Crs, e->Cic, e->Cis);
+//      fprintf(stdout, " %d %d %d %d %d %d",
+//	      e->toe, e->IODC, e->toc, e->AF0, e->AF1, e->AF2);
+//      fprintf(stdout, " %d %d %d %d %d\n",
+//	      e->bits, e->ura, e->health, e->tgd, e->AODA);
+//    }
+//  }
+
+  return 1;
+}
+
 static char *usage_str =
 "Usage:\n"
 "%s options [supl-server]\n"
@@ -251,7 +366,7 @@ static char *usage_str =
 "  --almanac|-a					request also almanac data\n"
 "  --cell gsm:mcc,mns:lac,ci|wcdma:mcc,msn,uc	set current gsm/wcdma cell id\n"
 "  --cell gsm:mcc,mns:lac,ci:lat,lon,uncert	set known gsm cell id with position\n"
-"  --format|-f human				machine parseable output\n"
+"  --format|-f human|-f ublox				machine parseable output\n"
 "  --debug|-d <n>				1 == RRLP, 2 == SUPL, 4 == DEBUG\n"
 "  --debug-file file				write debug to file\n"
 "  --help|-h					show this help\n"
@@ -281,8 +396,8 @@ static int parse_fake_pos(char *str, struct fake_pos_s *fake_pos) {
 	     &fake_pos->lat, &fake_pos->lon, &fake_pos->uncertainty) == 3) {
     fake_pos->valid = 1;
     return 0;
-  } 
-	
+  }
+
   if (sscanf(str, "%lf,%lf",
 	     &fake_pos->lat, &fake_pos->lon) == 2) {
     fake_pos->uncertainty = 121; /* 1000 km */
@@ -317,7 +432,7 @@ int main(int argc, char *argv[]) {
       switch (opt_index) {
 
       case 0: /* gsm/wcdma cell */
-	{	
+	{
 	  int mcc, mns, lac, ci, uc, uncertainty;
 	  double lat, lon;
 
@@ -339,7 +454,7 @@ int main(int argc, char *argv[]) {
 	    break;
 	  }
         }
-	
+
 	fprintf(stderr, "Ugh, cell\n");
 	break;
 
@@ -372,9 +487,12 @@ int main(int argc, char *argv[]) {
       if (strcmp(optarg, "human") == 0) {
 	format = FORMAT_HUMAN;
       }
+      if (strcmp(optarg, "ublox") == 0) {
+    format = FORMAT_UBLOX;
+      }
       break;
 
-    case 'd': 
+    case 'd':
       {
 	int debug = atoi(optarg);
 
@@ -403,7 +521,7 @@ int main(int argc, char *argv[]) {
 	supl_set_wcdma_cell(&ctx, 244, 5, 995763);
 	break;
       }
-      break;    
+      break;
 
     case 'h':
       usage(argv[0]);
@@ -442,12 +560,14 @@ int main(int argc, char *argv[]) {
   }
 
   switch (format) {
-  case FORMAT_DEFAULT: 
+  case FORMAT_DEFAULT:
     supl_consume_2(&assist);
     break;
   case FORMAT_HUMAN:
     supl_consume_1(&assist);
     break;
+  case FORMAT_UBLOX:
+	supl_consume_3(&assist);
   }
 
   supl_ctx_free(&ctx);
