@@ -13,37 +13,36 @@
 #endif
 
 PACK(
-        struct EphemSF {
+        struct EphemSF
+        {
             uint32_t W[8];                // Words 3-10 of Subframes
         });
 
 PACK(
-        struct EphemSV {
+        struct EphemSV
+        {
             uint32_t HOW;                // Hand Over Word
             struct EphemSF SF[3];                // Subframes
-            uint8_t checksum[2];        // Checksum
-        });
-
-PACK(
-        struct BinEphemerides {             // Holds EphemSV message for all SVs
-            struct EphemSV ephemsv[MAX_SAT];
         });
 
 
 PACK(
-        struct AlmSV {
+        struct AlmSV
+        {
             uint32_t number_week;                // Issue date of Almanac
             uint32_t words[8];            // Words 3-10 of Almanac data for an SV
         });
 
 // Holds Almanac data for all SVs
 PACK(
-        struct BinAlmanac {
+        struct BinAlmanac
+        {
             struct AlmSV almsv[MAX_SAT];
         });
 
 PACK(
-        struct BinProtocol {
+        struct BinProtocol
+        {
             int32_t lat;
             int32_t lon;
             uint32_t position_accuracy;
