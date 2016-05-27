@@ -15,11 +15,13 @@
 #include <string.h>
 #include <errno.h>
 #include <sys/types.h>
+#include <stdint.h>
 
-#include "ublox/ublox_structures.h"
 #include "supl.h"
+#include "protocol/bin.h"
+#include "swapbytes.cpp"
 
-typedef enum { FORMAT_DEFAULT, FORMAT_HUMAN, FORMAT_UBLOX } format_t;
+typedef enum { FORMAT_DEFAULT, FORMAT_HUMAN, FORMAT_BIN } format_t;
 
 static struct fake_pos_s {
   int valid;
@@ -246,54 +248,40 @@ static int supl_consume_2(supl_assist_t *ctx) {
 }
 
 static int supl_consume_3(supl_assist_t *ctx) {
-	struct AidIni aid_ini;
-	struct AidHui aid_hui;
-	struct UbloxAlmanac almanac;
-	struct Ephemerides ephemerides;
-
-	/* AID-INI */
-	aid_ini.header.sync1 = UBX_SYNC_BYTE_1;
-	aid_ini.header.sync2 = UBX_SYNC_BYTE_2;
-	aid_ini.header.message_class = MSG_CLASS_AID;
-	aid_ini.header.message_id = MSG_ID_AID_INI;
-	aid_ini.header.payload_length = 48;
+	struct BinProtocol bin;
 
     if (ctx->set & SUPL_RRLP_ASSIST_REFLOC) {
-        aid_ini.ecefXorLat = (int32_t) (ctx->pos.lat * 10000000);
-        aid_ini.ecefYorLon = (int32_t) (ctx->pos.lon * 10000000);
+        bin.lat = (int32_t) (ctx->pos.lat * 10000000);
+        bin.lon = (int32_t) (ctx->pos.lon * 10000000);
+        bin.position_accuracy = (uint32_t) (10.0 * (pow(1.1, ctx->pos.uncertainty) - 1));
     } else {
-        aid_ini.ecefXorLat = 0;
-        aid_ini.ecefYorLon = 0;
+        bin.lat = 0;
+        bin.lon = 0;
+        bin.position_accuracy = 0;
     }
-	aid_ini.ecefZorAlt = 0;
-	aid_ini.position_accuracy = (uint32_t) (10.0 * (pow(1.1, ctx->pos.uncertainty) - 1));
 
     if (ctx->set & SUPL_RRLP_ASSIST_REFTIME) {
-        aid_ini.week_number = (uint16_t) ctx->time.gps_week;
-        aid_ini.time_of_week = (uint32_t) ctx->time.gps_tow;
+        bin.number_week = (uint32_t) ctx->time.gps_week + 1024;
+        bin.time_of_week = (uint32_t) ctx->time.gps_tow;
     } else {
-        aid_ini.week_number = 0;
-        aid_ini.time_of_week = 0;
+        bin.number_week = 0;
+        bin.time_of_week = 0;
     }
-    aid_ini.time_configuration = 0;
-    aid_ini.time_accuracy_ms = aid_ini.time_accuracy_ns = 0;
-    aid_ini.time_of_week_ns = 0;
 
-	aid_ini.clock_drift_or_freq = aid_ini.clock_drift_or_freq_accuracy = aid_ini.flags = 0;
-	aid_ini.checksum[0] = aid_ini.checksum[1] = 0;
+    BIGENDIAN(bin.lat)
+    BIGENDIAN(bin.lon)
+    BIGENDIAN(bin.position_accuracy)
+    BIGENDIAN(bin.number_week)
+    BIGENDIAN(bin.time_of_week)
 
-	/* AID-HUI */
-
-
-	/* AID-ALM */
 	if (ctx->cnt_alm) {
 	    int i;
 
 	    for (i = 0; i < ctx->cnt_alm; i++) {
 	      struct supl_almanac_s *a = &ctx->alm[i];
 	      if (a->prn <= MAX_SAT) {
-	    	  struct AlmSV *b = &almanac.almsv[a->prn - 1];
-	    	  b->header.payload_length = 40;
+	    	  struct AlmSV *b = &bin.almanac.almsv[a->prn - 1];
+              b->number_week = (uint32_t) ctx->time.gps_week;
 
 	    	  // words
 	    	  b->words[0] = a->e | ((a->prn & 0x3F) << 16) | ((1 & 0xF) << 22);
@@ -305,31 +293,23 @@ static int supl_consume_3(supl_assist_t *ctx) {
 	    	  b->words[6] = (uint32_t) (a->M0 & 0xFFFFFF);
 
 	    	  b->words[7] = (uint32_t) (((a->AF0 & 0b11111111000) << 13) | ((a->AF1 & 0b1111111111) << 5) | ((a->AF0 & 0b111) << 2));
-	      }
-	    }
-	    for (i = 0; i < MAX_SAT; i++) {
-	    	struct AlmSV *a = &almanac.almsv[i];
-	    	a->header.sync1 = UBX_SYNC_BYTE_1;
-	    	a->header.sync2 = UBX_SYNC_BYTE_2;
-	    	a->header.message_class = MSG_CLASS_AID;
-	    	a->header.message_id = MSG_ID_AID_ALM;
-	    	if (a->header.payload_length != 40) {
-	    		a->header.payload_length = 8;
-	    		a->issue_week = 0;
-	    	} else {
-	    		a->issue_week = (uint32_t) ctx->alm_week;
-	    	}
 
-	    	a->svprn = (uint32_t) (i + 1);
-            a->checksum[0] = a->checksum[1] = 0;
+              BIGENDIAN(b->number_week)
+              BIGENDIAN(b->words[0])
+              BIGENDIAN(b->words[1])
+              BIGENDIAN(b->words[2])
+              BIGENDIAN(b->words[3])
+              BIGENDIAN(b->words[4])
+              BIGENDIAN(b->words[5])
+              BIGENDIAN(b->words[6])
+              BIGENDIAN(b->words[7])
+	      }
 	    }
 	}
 
-    /* ALM-EPH */
 
     /* Output */
-    fwrite((const void *) &aid_ini, sizeof(struct AidIni), 1, stdout);
-    fwrite((const void *) &almanac, sizeof(struct UbloxAlmanac), 1, stdout);
+    fwrite((const void *) &bin, sizeof(struct BinProtocol), 1, stdout);
 
 //  if (ctx->set & SUPL_RRLP_ASSIST_IONO) {
 //    fprintf(stdout, "I %d %d %d %d %d %d %d\n",
@@ -366,7 +346,7 @@ static char *usage_str =
 "  --almanac|-a					request also almanac data\n"
 "  --cell gsm:mcc,mns:lac,ci|wcdma:mcc,msn,uc	set current gsm/wcdma cell id\n"
 "  --cell gsm:mcc,mns:lac,ci:lat,lon,uncert	set known gsm cell id with position\n"
-"  --format|-f human|-f ublox				machine parseable output\n"
+"  --format|-f human|-f protocol				machine parseable output\n"
 "  --debug|-d <n>				1 == RRLP, 2 == SUPL, 4 == DEBUG\n"
 "  --debug-file file				write debug to file\n"
 "  --help|-h					show this help\n"
@@ -487,8 +467,8 @@ int main(int argc, char *argv[]) {
       if (strcmp(optarg, "human") == 0) {
 	format = FORMAT_HUMAN;
       }
-      if (strcmp(optarg, "ublox") == 0) {
-    format = FORMAT_UBLOX;
+      if (strcmp(optarg, "bin") == 0) {
+    format = FORMAT_BIN;
       }
       break;
 
@@ -566,7 +546,7 @@ int main(int argc, char *argv[]) {
   case FORMAT_HUMAN:
     supl_consume_1(&assist);
     break;
-  case FORMAT_UBLOX:
+  case FORMAT_BIN:
 	supl_consume_3(&assist);
   }
 
