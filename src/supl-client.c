@@ -280,7 +280,9 @@ static int supl_consume_2(supl_assist_t *ctx)
 static int supl_consume_3(supl_assist_t *ctx)
 {
     struct BinProtocol bin;
+    struct EphemSV* ephemerides = NULL;
 
+    bin.EphemMask = 0;
 
     if (ctx->set & SUPL_RRLP_ASSIST_REFLOC)
     {
@@ -347,42 +349,52 @@ static int supl_consume_3(supl_assist_t *ctx)
         }
     }
 
-    /* Output */
-    fwrite((const void *) &bin, sizeof(struct BinProtocol), 1, stdout);
-
     if (ctx->cnt_eph)
     {
         int i;
-        struct EphemSV* ephemerides = malloc(ctx->cnt_eph * sizeof(struct EphemSV));
+        ephemerides = malloc(ctx->cnt_eph * sizeof(struct EphemSV));
 
         for (i = 0; i < ctx->cnt_eph; i++) {
             struct supl_ephemeris_s *e = &ctx->eph[i];
+            struct EphemSV ephemeride = ephemerides[i];
 
+            bin.EphemMask |= 1 << (e->prn - 1);
+            // ephemeride.HOW = ???;
 
+            ephemeride.SF[0].W[0] = ((ctx->time.gps_week & 0x3FF) << 14) | (e->IODC & 0x300);
+            ephemeride.SF[0].W[1] = 0;
+            ephemeride.SF[0].W[2] = 0;
+            ephemeride.SF[0].W[3] = 0;
+            ephemeride.SF[0].W[4] = (uint32_t) (e->tgd & 0xFF);
+            ephemeride.SF[0].W[5] = ((e->IODC & 0xFF) << 16) | (e->toc & 0xFFFF);
+            ephemeride.SF[0].W[6] = (uint32_t) ((e->AF2 << 16) | e->AF1);
+            ephemeride.SF[0].W[7] = (uint32_t) ((e->AF0 & 0x3FFFFF) << 2);
+
+            ephemeride.SF[1].W[0] = (uint32_t) (((0 & 0xFF) << 16) | (e->Crs)); // IODE
+            ephemeride.SF[1].W[1] = ((e->delta_n & 0xFFFF) << 8) | ((e->M0 & 0xFF000000) >> 24);
+            ephemeride.SF[1].W[2] = (uint32_t) (e->M0 & 0xFFFFFF);
+            ephemeride.SF[1].W[3] = ((e->Cuc & 0xFFFF) << 8) | ((e->e & 0xFF000000) >> 24);
+            ephemeride.SF[1].W[4] = (uint32_t) (e->e & 0xFFFFFF);
+            ephemeride.SF[1].W[5] = ((e->Cus & 0xFFFF) << 8) | ((e->A_sqrt & 0xFF000000) >> 24);
+            ephemeride.SF[1].W[6] = (uint32_t) (e->A_sqrt & 0xFFFFFF);
+            ephemeride.SF[1].W[7] = ((e->toe & 0xFFFF) << 8); // AODO
+
+            ephemeride.SF[2].W[0] = ((e->Cic & 0xFFFF) << 8) | ((e->OMEGA_0 & 0xFF000000) >> 24);
+            ephemeride.SF[2].W[1] = (uint32_t) (e->OMEGA_0 & 0xFFFFFF);
+            ephemeride.SF[2].W[2] = ((e->Cis & 0xFFFF) << 8) | ((e->i0 & 0xFF000000) >> 24);
+            ephemeride.SF[2].W[3] = (uint32_t) (e->i0 & 0xFFFFFF);
+            ephemeride.SF[2].W[4] = ((e->Crc & 0xFFFF) << 8) | ((e->w & 0xFF000000) >> 24);
+            ephemeride.SF[2].W[5] = (uint32_t) (e->w & 0xFFFFFF);
+            ephemeride.SF[2].W[6] = (uint32_t) (e->OMEGA_dot & 0xFFFFFF);
+            ephemeride.SF[2].W[7] = (uint32_t) ((0 & 0xFF) << 16) | ((e->i_dot & 0x3FFF) << 2); // IODE, IDOT
         }
-
-        fwrite((const void *) ephemerides, sizeof(struct EphemSV), (size_t) ctx->cnt_eph, stdout);
     }
 
-
-//  if (ctx->cnt_eph) {
-//    int i;
-//
-//    fprintf(stdout, "E %d\n", ctx->cnt_eph);
-//
-//    for (i = 0; i < ctx->cnt_eph; i++) {
-//      struct supl_ephemeris_s *e = &ctx->eph[i];
-//
-//      fprintf(stdout, "e %d %d %d %d %d %d %d %d %d %d",
-//	      e->prn, e->delta_n, e->M0, e->A_sqrt, e->OMEGA_0, e->i0, e->w, e->OMEGA_dot, e->i_dot, e->e);
-//      fprintf(stdout, " %d %d %d %d %d %d",
-//	      e->Cuc, e->Cus, e->Crc, e->Crs, e->Cic, e->Cis);
-//      fprintf(stdout, " %d %d %d %d %d %d",
-//	      e->toe, e->IODC, e->toc, e->AF0, e->AF1, e->AF2);
-//      fprintf(stdout, " %d %d %d %d %d\n",
-//	      e->bits, e->ura, e->health, e->tgd, e->AODA);
-//    }
-//  }
+    /* Output */
+    fwrite((const void *) &bin, sizeof(struct BinProtocol), 1, stdout);
+    if (ctx->cnt_eph) {
+        fwrite((const void *) ephemerides, sizeof(struct EphemSV), (size_t) ctx->cnt_eph, stdout);
+    }
 
     return 1;
 }
