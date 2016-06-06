@@ -288,7 +288,7 @@ static int supl_consume_3(supl_assist_t *ctx)
     {
         bin.lat = (int32_t) (ctx->pos.lat * 10000000);
         bin.lon = (int32_t) (ctx->pos.lon * 10000000);
-        bin.position_accuracy = (uint32_t) (10.0 * (pow(1.1, ctx->pos.uncertainty) - 1));
+        bin.position_accuracy = (uint32_t) (10.0 * (pow(1.1, ctx->pos.uncertainty) - 1)) * 100;
     } else
     {
         bin.lat = 0;
@@ -299,7 +299,7 @@ static int supl_consume_3(supl_assist_t *ctx)
     if (ctx->set & SUPL_RRLP_ASSIST_REFTIME)
     {
         bin.number_week = (uint32_t) ctx->time.gps_week + 1024;
-        bin.time_of_week = (uint32_t) ctx->time.gps_tow;
+        bin.time_of_week = (uint32_t) (ctx->time.gps_tow * 0.08);
     } else
     {
         bin.number_week = 0;
@@ -325,9 +325,9 @@ static int supl_consume_3(supl_assist_t *ctx)
                 b->number_week = (uint32_t) ctx->time.gps_week;
 
                 // words
-                b->words[0] = a->e | ((a->prn & 0x3F) << 16) | ((1 & 0xF) << 22);
-                b->words[1] = a->Ksii | (a->toa << 16);
-                b->words[2] = (uint32_t) (a->OMEGA_dot << 8);
+                b->words[0] = (a->e & 0xFFFF) | ((a->prn & 0x3F) << 16) | ((1 & 0xF) << 22);
+                b->words[1] = (a->Ksii & 0xFFFF) | ((a->toa & 0xFF) << 16);
+                b->words[2] = (uint32_t) ((a->OMEGA_dot & 0xFFFF) << 8);
                 b->words[3] = a->A_sqrt & 0xFFFFFF;
                 b->words[4] = (uint32_t) (a->OMEGA_0 & 0xFFFFFF);
                 b->words[5] = (uint32_t) (a->w & 0xFFFFFF);
