@@ -322,7 +322,7 @@ static int supl_consume_3(supl_assist_t *ctx)
             if (a->prn <= MAX_SAT)
             {
                 struct AlmSV *b = &bin.almanac.almsv[a->prn - 1];
-                b->number_week = (uint32_t) ctx->time.gps_week;
+                b->number_week = (uint32_t) ctx->time.gps_week + 1024;
 
                 // words
                 b->words[0] = (a->e & 0xFFFF) | ((a->prn & 0x3F) << 16) | ((1 & 0xF) << 22);
@@ -352,47 +352,54 @@ static int supl_consume_3(supl_assist_t *ctx)
     if (ctx->cnt_eph)
     {
         int i;
+        //ephemerides = malloc(32 * sizeof(struct EphemSV));
         ephemerides = malloc(ctx->cnt_eph * sizeof(struct EphemSV));
+        memset(ephemerides, 0, 32 * sizeof(struct EphemSV));
 
         for (i = 0; i < ctx->cnt_eph; i++) {
             struct supl_ephemeris_s *e = &ctx->eph[i];
-            struct EphemSV ephemeride = ephemerides[i];
+            //struct EphemSV *ephemeride = &ephemerides[e->prn - 1];
+            struct EphemSV *ephemeride = &ephemerides[i];
 
             bin.EphemMask |= 1 << (e->prn - 1);
-            // ephemeride.HOW = ???;
+            ephemeride->HOW = (uint32_t) ((ctx->time.gps_tow * 0.08 / 1.5) + 7200);
+            ephemeride->HOW = (ephemeride->HOW & 0xFFFFFFFC) << 5;
+            ephemeride->HOW = ephemeride->HOW | 0x4;
 
-            ephemeride.SF[0].W[0] = ((ctx->time.gps_week & 0x3FF) << 14) | (e->IODC & 0x300);
-            ephemeride.SF[0].W[1] = 0;
-            ephemeride.SF[0].W[2] = 0;
-            ephemeride.SF[0].W[3] = 0;
-            ephemeride.SF[0].W[4] = (uint32_t) (e->tgd & 0xFF);
-            ephemeride.SF[0].W[5] = ((e->IODC & 0xFF) << 16) | (e->toc & 0xFFFF);
-            ephemeride.SF[0].W[6] = (uint32_t) ((e->AF2 << 16) | e->AF1);
-            ephemeride.SF[0].W[7] = (uint32_t) ((e->AF0 & 0x3FFFFF) << 2);
+            ephemeride->SF[0].W[0] = ((ctx->time.gps_week & 0x3FF) << 14) | (e->IODC & 0x300);
+            ephemeride->SF[0].W[1] = 0;
+            ephemeride->SF[0].W[2] = 0;
+            ephemeride->SF[0].W[3] = 0;
+            ephemeride->SF[0].W[4] = (uint32_t) (e->tgd & 0xFF);
+            ephemeride->SF[0].W[5] = (((e->IODC & 0xFF) << 16) | (e->toc & 0xFFFF)) & 0xFFFFFF;
+            ephemeride->SF[0].W[6] = (uint32_t) ((e->AF2 << 16) | e->AF1) & 0xFFFFFF;
+            ephemeride->SF[0].W[7] = (uint32_t) ((e->AF0 & 0x3FFFFF) << 2) & 0xFFFFFF;
 
-            ephemeride.SF[1].W[0] = (uint32_t) (((0 & 0xFF) << 16) | (e->Crs)); // IODE
-            ephemeride.SF[1].W[1] = ((e->delta_n & 0xFFFF) << 8) | ((e->M0 & 0xFF000000) >> 24);
-            ephemeride.SF[1].W[2] = (uint32_t) (e->M0 & 0xFFFFFF);
-            ephemeride.SF[1].W[3] = ((e->Cuc & 0xFFFF) << 8) | ((e->e & 0xFF000000) >> 24);
-            ephemeride.SF[1].W[4] = (uint32_t) (e->e & 0xFFFFFF);
-            ephemeride.SF[1].W[5] = ((e->Cus & 0xFFFF) << 8) | ((e->A_sqrt & 0xFF000000) >> 24);
-            ephemeride.SF[1].W[6] = (uint32_t) (e->A_sqrt & 0xFFFFFF);
-            ephemeride.SF[1].W[7] = ((e->toe & 0xFFFF) << 8); // AODO
+            ephemeride->SF[1].W[0] = (uint32_t) (((e->IODC & 0xFF) << 16) | (e->Crs)) & 0xFFFFFF; // IODE
+            ephemeride->SF[1].W[1] = ((e->delta_n & 0xFFFF) << 8) | ((e->M0 & 0xFF000000) >> 24);
+            ephemeride->SF[1].W[2] = (uint32_t) (e->M0 & 0xFFFFFF);
+            ephemeride->SF[1].W[3] = ((e->Cuc & 0xFFFF) << 8) | ((e->e & 0xFF000000) >> 24);
+            ephemeride->SF[1].W[4] = (uint32_t) (e->e & 0xFFFFFF);
+            ephemeride->SF[1].W[5] = ((e->Cus & 0xFFFF) << 8) | ((e->A_sqrt & 0xFF000000) >> 24);
+            ephemeride->SF[1].W[6] = (uint32_t) (e->A_sqrt & 0xFFFFFF);
+            ephemeride->SF[1].W[7] = ((e->toe & 0xFFFF) << 8); // AODO
 
-            ephemeride.SF[2].W[0] = ((e->Cic & 0xFFFF) << 8) | ((e->OMEGA_0 & 0xFF000000) >> 24);
-            ephemeride.SF[2].W[1] = (uint32_t) (e->OMEGA_0 & 0xFFFFFF);
-            ephemeride.SF[2].W[2] = ((e->Cis & 0xFFFF) << 8) | ((e->i0 & 0xFF000000) >> 24);
-            ephemeride.SF[2].W[3] = (uint32_t) (e->i0 & 0xFFFFFF);
-            ephemeride.SF[2].W[4] = ((e->Crc & 0xFFFF) << 8) | ((e->w & 0xFF000000) >> 24);
-            ephemeride.SF[2].W[5] = (uint32_t) (e->w & 0xFFFFFF);
-            ephemeride.SF[2].W[6] = (uint32_t) (e->OMEGA_dot & 0xFFFFFF);
-            ephemeride.SF[2].W[7] = (uint32_t) ((0 & 0xFF) << 16) | ((e->i_dot & 0x3FFF) << 2); // IODE, IDOT
+            ephemeride->SF[2].W[0] = ((e->Cic & 0xFFFF) << 8) | ((e->OMEGA_0 & 0xFF000000) >> 24);
+            ephemeride->SF[2].W[1] = (uint32_t) (e->OMEGA_0 & 0xFFFFFF);
+            ephemeride->SF[2].W[2] = ((e->Cis & 0xFFFF) << 8) | ((e->i0 & 0xFF000000) >> 24);
+            ephemeride->SF[2].W[3] = (uint32_t) (e->i0 & 0xFFFFFF);
+            ephemeride->SF[2].W[4] = ((e->Crc & 0xFFFF) << 8) | ((e->w & 0xFF000000) >> 24);
+            ephemeride->SF[2].W[5] = (uint32_t) (e->w & 0xFFFFFF);
+            ephemeride->SF[2].W[6] = (uint32_t) (e->OMEGA_dot & 0xFFFFFF);
+            ephemeride->SF[2].W[7] = (uint32_t) ((e->IODC & 0xFF) << 16) | ((e->i_dot & 0x3FFF) << 2); // IODE
         }
+        BIGENDIAN(bin.EphemMask);
     }
 
     /* Output */
     fwrite((const void *) &bin, sizeof(struct BinProtocol), 1, stdout);
     if (ctx->cnt_eph) {
+        //fwrite((const void *) ephemerides, sizeof(struct EphemSV), 32, stdout);
         fwrite((const void *) ephemerides, sizeof(struct EphemSV), (size_t) ctx->cnt_eph, stdout);
     }
 

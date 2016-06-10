@@ -3,7 +3,7 @@
 
 #include "stdint.h"
 
-#define MAX_SAT     33  // maximum number of prns - max prn is 32 plus prn 0 is 33
+#define MAX_SAT     32  // maximum number of prns - max prn is 32 plus prn 0 is 33
 
 // define macro to pack structures correctly with both GCC and MSVC compilers
 #ifdef _MSC_VER // using MSVC
