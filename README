@@ -23,7 +23,7 @@ supl-client options [supl-server]
 Options:
   --cell gsm:mcc,mns:lac,ci|wcdma:mcc,msn,uc	set current gsm/wcdma cell id
   --cell gsm:mcc,mns:lac,ci:lat,lon,uncert	set known gsm cell id with position
-  --format human				machine parseable output
+  [--format|-f] [human|bin]				machine parseable output
   --debug n					1 == RRLP, 2 == SUPL, 4 == DEBUG
   --debug-file file				write debug to file
   --help                                        show this help

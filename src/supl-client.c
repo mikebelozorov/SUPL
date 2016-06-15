@@ -413,7 +413,7 @@ static char *usage_str =
                 "  --almanac|-a					request also almanac data\n"
                 "  --cell gsm:mcc,mns:lac,ci|wcdma:mcc,msn,uc	set current gsm/wcdma cell id\n"
                 "  --cell gsm:mcc,mns:lac,ci:lat,lon,uncert	set known gsm cell id with position\n"
-                "  --format|-f human|-f protocol				machine parseable output\n"
+                "  [--format|-f] [human|bin]				machine parseable output\n"
                 "  --debug|-d <n>				1 == RRLP, 2 == SUPL, 4 == DEBUG\n"
                 "  --debug-file file				write debug to file\n"
                 "  --help|-h					show this help\n"
